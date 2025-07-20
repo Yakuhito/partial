@@ -1,7 +1,15 @@
-use chia::{bls::Signature, protocol::SpendBundle};
-use chia_puzzle_types::standard::StandardArgs;
+use chia::{
+    bls::Signature,
+    protocol::{Bytes32, SpendBundle},
+};
+use chia_puzzle_types::{
+    Memos,
+    offer::{NotarizedPayment, Payment, SettlementPaymentsSolution},
+    standard::StandardArgs,
+};
 use chia_wallet_sdk::{
-    driver::{Offer, SpendContext, decode_offer},
+    driver::{Cat, CatSpend, Offer, Spend, SpendContext, decode_offer},
+    types::puzzles::SettlementPayment,
     utils::Address,
 };
 use slot_machine::{
@@ -101,8 +109,6 @@ pub async fn cli_create(
         offer.offered_coins().cats.get(&offered_asset_id).unwrap()[0].child_lineage_proof()
     });
 
-    // todo: actually spend offered coin to create partial offer coin
-
     let partial_offer_info = PartialOfferInfo::new(
         lineage_proof,
         offered_asset_info,
@@ -112,6 +118,25 @@ pub async fn cli_create(
         expiration,
         price_data,
     );
+
+    let offer_mod = ctx.alloc_mod::<SettlementPayment>()?;
+    let offer_solution = ctx.alloc(&SettlementPaymentsSolution {
+        notarized_payments: vec![NotarizedPayment::new(
+            Bytes32::default(),
+            vec![Payment::new(
+                partial_offer_info.inner_puzzle_hash().into(),
+                offered_amount,
+                Memos::None,
+            )],
+        )],
+    })?;
+    let inner_spend = Spend::new(offer_mod, offer_solution);
+    if let Some(offered_asset_id) = offered_asset_id {
+        let cat = offer.offered_coins().cats.get(&offered_asset_id).unwrap()[0];
+        let _ = Cat::spend_all(&mut ctx, &[CatSpend::new(cat, inner_spend)])?;
+    } else {
+        ctx.spend(offer.offered_coins().xch[0], inner_spend)?;
+    }
 
     let parent_coin_id = if let Some(offered_asset_id) = offered_asset_id {
         offer.offered_coins().cats.get(&offered_asset_id).unwrap()[0]
