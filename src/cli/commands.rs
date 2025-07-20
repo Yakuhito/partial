@@ -37,7 +37,7 @@ enum Commands {
 
         /// Fee to include in partial offer
         #[arg(long, default_value = "0.00042")]
-        fee: u64,
+        fee: String,
 
         /// Use testnet11
         #[arg(long, default_value = "false")]

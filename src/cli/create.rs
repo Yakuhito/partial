@@ -28,7 +28,7 @@ pub async fn cli_create(
     asked_asset_id_str: Option<String>,
     asked_amount_str: String,
     expiration: Option<u64>,
-    fee: u64,
+    fee_str: String,
     testnet11: bool,
 ) -> Result<(), CliError> {
     let offered_asset_id = if let Some(offered_asset_id_str) = &offered_asset_id_str {
@@ -51,6 +51,7 @@ pub async fn cli_create(
 
     let offered_amount = parse_amount(&offered_amount_str, offered_asset_id.is_some())?;
     let asked_amount = parse_amount(&asked_amount_str, asked_asset_id.is_some())?;
+    let fee = parse_amount(&fee_str, false)?;
 
     let sage = SageClient::new()?;
 
