@@ -36,8 +36,12 @@ enum Commands {
         expiration: Option<u64>,
 
         /// Fee to include in partial offer
-        #[arg(long, default_value = "0.0025")]
+        #[arg(long, default_value = "0.00042")]
         fee: u64,
+
+        /// Use testnet11
+        #[arg(long, default_value = "false")]
+        testnet11: bool,
     },
 }
 
@@ -52,6 +56,7 @@ pub async fn run_cli() {
             asked_amount,
             expiration,
             fee,
+            testnet11,
         } => {
             cli_create(
                 offered_asset_id,
@@ -60,6 +65,7 @@ pub async fn run_cli() {
                 asked_amount,
                 expiration,
                 fee,
+                testnet11,
             )
             .await
         }

@@ -1,25 +1,25 @@
-use chia::{
-    bls::Signature,
-    protocol::{Bytes32, SpendBundle},
-};
+use chia::protocol::{Bytes32, SpendBundle};
 use chia_puzzle_types::{
     Memos,
     offer::{NotarizedPayment, Payment, SettlementPaymentsSolution},
     standard::StandardArgs,
 };
 use chia_wallet_sdk::{
-    driver::{Cat, CatSpend, Offer, Spend, SpendContext, decode_offer},
-    types::puzzles::SettlementPayment,
+    driver::{
+        Cat, CatSpend, Offer, Spend, SpendContext, create_security_coin, decode_offer,
+        spend_security_coin,
+    },
+    types::{Conditions, puzzles::SettlementPayment},
     utils::Address,
 };
+use clvmr::NodePtr;
 use slot_machine::{
-    CliError, SageClient, assets_xch_only, hex_string_to_bytes32, hex_string_to_pubkey, no_assets,
-    parse_amount,
+    CliError, SageClient, assets_xch_and_cat, assets_xch_only, get_constants,
+    hex_string_to_bytes32, hex_string_to_pubkey, no_assets, parse_amount,
 };
 
 use crate::{
-    PartialOffer, PartialOfferAssetInfo, PartialOfferInfo, PartialPriceData, assets_cat_only,
-    encode_partial_offer,
+    PartialOffer, PartialOfferAssetInfo, PartialOfferInfo, PartialPriceData, encode_partial_offer,
 };
 
 pub async fn cli_create(
@@ -29,6 +29,7 @@ pub async fn cli_create(
     asked_amount_str: String,
     expiration: Option<u64>,
     fee: u64,
+    testnet11: bool,
 ) -> Result<(), CliError> {
     let offered_asset_id = if let Some(offered_asset_id_str) = &offered_asset_id_str {
         Some(hex_string_to_bytes32(offered_asset_id_str)?)
@@ -57,7 +58,7 @@ pub async fn cli_create(
         .make_offer(
             no_assets(),
             if let Some(offered_asset_id_str) = offered_asset_id_str {
-                assets_cat_only(offered_asset_id_str, offered_amount)
+                assets_xch_and_cat(1, offered_asset_id_str, offered_amount)
             } else {
                 assets_xch_only(offered_amount)
             },
@@ -119,24 +120,60 @@ pub async fn cli_create(
         price_data,
     );
 
+    let (security_sk, security_coin) =
+        create_security_coin(&mut ctx, offer.offered_coins().xch[0])?;
+
     let offer_mod = ctx.alloc_mod::<SettlementPayment>()?;
-    let offer_solution = ctx.alloc(&SettlementPaymentsSolution {
+    let partial_offer_payment = Payment::new(
+        partial_offer_info.inner_puzzle_hash().into(),
+        offered_amount,
+        Memos::None,
+    );
+    let security_coin_payment = Payment::new(
+        security_coin.puzzle_hash,
+        if offered_asset_id.is_some() { 1 } else { 0 },
+        Memos::None,
+    );
+    let xch_offer_solution = ctx.alloc(&SettlementPaymentsSolution {
         notarized_payments: vec![NotarizedPayment::new(
             Bytes32::default(),
-            vec![Payment::new(
-                partial_offer_info.inner_puzzle_hash().into(),
-                offered_amount,
-                Memos::None,
-            )],
+            if offered_asset_id.is_none() {
+                vec![partial_offer_payment.clone(), security_coin_payment]
+            } else {
+                vec![security_coin_payment]
+            },
         )],
     })?;
-    let inner_spend = Spend::new(offer_mod, offer_solution);
+
+    ctx.spend(
+        offer.offered_coins().xch[0],
+        Spend::new(offer_mod, xch_offer_solution),
+    )?;
+
     if let Some(offered_asset_id) = offered_asset_id {
         let cat = offer.offered_coins().cats.get(&offered_asset_id).unwrap()[0];
-        let _ = Cat::spend_all(&mut ctx, &[CatSpend::new(cat, inner_spend)])?;
-    } else {
-        ctx.spend(offer.offered_coins().xch[0], inner_spend)?;
+        let cat_offer_solution = ctx.alloc(&SettlementPaymentsSolution {
+            notarized_payments: vec![NotarizedPayment::new(
+                Bytes32::default(),
+                vec![partial_offer_payment],
+            )],
+        })?;
+        let _ = Cat::spend_all(
+            &mut ctx,
+            &[CatSpend::new(
+                cat,
+                Spend::new(offer_mod, cat_offer_solution),
+            )],
+        )?;
     }
+
+    let security_sig = spend_security_coin(
+        &mut ctx,
+        security_coin,
+        Conditions::new().remark(NodePtr::NIL),
+        &security_sk,
+        get_constants(testnet11),
+    )?;
 
     let parent_coin_id = if let Some(offered_asset_id) = offered_asset_id {
         offer.offered_coins().cats.get(&offered_asset_id).unwrap()[0]
@@ -149,7 +186,7 @@ pub async fn cli_create(
 
     let mut coin_spends = partial_offer.to_spend_bundle(&mut ctx)?.coin_spends;
     coin_spends.extend(ctx.take());
-    let sb = offer.take(SpendBundle::new(coin_spends, Signature::default()));
+    let sb = offer.take(SpendBundle::new(coin_spends, security_sig));
 
     println!("Partial offer: {:}", encode_partial_offer(&sb)?);
 
