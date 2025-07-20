@@ -61,7 +61,7 @@ pub async fn cli_create(
             if let Some(offered_asset_id_str) = offered_asset_id_str {
                 assets_xch_and_cat(1, offered_asset_id_str, offered_amount)
             } else {
-                assets_xch_only(offered_amount)
+                assets_xch_only(offered_amount + 1)
             },
             fee,
             None,
@@ -123,6 +123,7 @@ pub async fn cli_create(
 
     let (security_sk, security_coin) =
         create_security_coin(&mut ctx, offer.offered_coins().xch[0])?;
+    let _ = ctx.take(); // ignore coin spend inserted by func above
 
     let offer_mod = ctx.alloc_mod::<SettlementPayment>()?;
     let partial_offer_payment = Payment::new(
@@ -130,11 +131,8 @@ pub async fn cli_create(
         offered_amount,
         Memos::None,
     );
-    let security_coin_payment = Payment::new(
-        security_coin.puzzle_hash,
-        if offered_asset_id.is_some() { 1 } else { 0 },
-        Memos::None,
-    );
+    let security_coin_payment =
+        Payment::new(security_coin.puzzle_hash, security_coin.amount, Memos::None);
     let xch_offer_solution = ctx.alloc(&SettlementPaymentsSolution {
         notarized_payments: vec![NotarizedPayment::new(
             Bytes32::default(),
@@ -145,7 +143,6 @@ pub async fn cli_create(
             },
         )],
     })?;
-
     ctx.spend(
         offer.offered_coins().xch[0],
         Spend::new(offer_mod, xch_offer_solution),
@@ -187,7 +184,10 @@ pub async fn cli_create(
 
     let mut coin_spends = partial_offer.to_spend_bundle(&mut ctx)?.coin_spends;
     coin_spends.extend(ctx.take());
-    let sb = offer.take(SpendBundle::new(coin_spends, security_sig));
+
+    let sig = security_sig + &offer.spend_bundle().aggregated_signature;
+    coin_spends.extend(offer.spend_bundle().coin_spends.to_vec());
+    let sb = SpendBundle::new(coin_spends, sig);
 
     println!("Partial offer: {:}", encode_partial_offer(&sb)?);
 
