@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 
-use crate::cli_create;
+use crate::{cli_create, cli_view};
 
 #[derive(Parser)]
 #[command(
@@ -43,6 +43,15 @@ enum Commands {
         #[arg(long, default_value = "false")]
         testnet11: bool,
     },
+    View {
+        /// Offer
+        #[arg(long)]
+        offer: String,
+
+        /// Use testnet11
+        #[arg(long, default_value = "false")]
+        testnet11: bool,
+    },
 }
 
 pub async fn run_cli() {
@@ -69,6 +78,7 @@ pub async fn run_cli() {
             )
             .await
         }
+        Commands::View { offer, testnet11 } => cli_view(offer, testnet11).await,
     };
 
     if let Err(err) = res {
