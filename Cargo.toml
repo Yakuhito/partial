@@ -9,7 +9,6 @@ chia = "0.26.0"
 clvm-traits = "0.26.0"
 chia-puzzle-types = "0.26.0"
 hex-literal = "0.4.1"
-serde = { version = "1.0.219", features = ["derive"] }
 hex = "0.4.3"
 clap = { version = "4", features = ["derive"] }
 sage-api = { version = "0.10.3", git = "https://github.com/xch-dev/sage.git" }

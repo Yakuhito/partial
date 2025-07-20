@@ -3369,7 +3369,6 @@ dependencies = [
  "prettytable-rs",
  "rstest",
  "sage-api",
- "serde",
  "slot-machine",
  "tokio",
 ]
