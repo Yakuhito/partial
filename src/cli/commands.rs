@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 
-use crate::{cli_create, cli_take, cli_view};
+use crate::{cli_cancel, cli_create, cli_take, cli_view};
 
 #[derive(Parser)]
 #[command(
@@ -72,6 +72,20 @@ enum Commands {
         #[arg(long, default_value = "false")]
         testnet11: bool,
     },
+    // Cancel a partial offer
+    Cancel {
+        /// Offer
+        #[arg(long)]
+        offer: String,
+
+        /// Fee to include in partial offer
+        #[arg(long, default_value = "0.00042")]
+        fee: String,
+
+        /// Use testnet11
+        #[arg(long, default_value = "false")]
+        testnet11: bool,
+    },
 }
 
 pub async fn run_cli() {
@@ -105,6 +119,11 @@ pub async fn run_cli() {
             fee,
             testnet11,
         } => cli_take(offer, amount, fee, testnet11).await,
+        Commands::Cancel {
+            offer,
+            fee,
+            testnet11,
+        } => cli_cancel(offer, fee, testnet11).await,
     };
 
     if let Err(err) = res {

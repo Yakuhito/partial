@@ -31,14 +31,16 @@ pub async fn cli_take(
         take_amount = min_take_amount;
     }
 
-    println!(
-        "New partial offer will be: {}",
-        encode_partial_offer(
-            &partial_offer
-                .child(partial_offer.coin.amount - output_amount)
-                .to_spend_bundle(&mut ctx)?
-        )?
-    );
+    if output_amount > partial_offer.coin.amount {
+        println!(
+            "New partial offer will be: {}",
+            encode_partial_offer(
+                &partial_offer
+                    .child(partial_offer.coin.amount - output_amount)
+                    .to_spend_bundle(&mut ctx)?
+            )?
+        );
+    }
 
     let sage = SageClient::new()?;
     let offer_resp = sage
@@ -56,7 +58,7 @@ pub async fn cli_take(
             fee,
             None,
             None,
-            false,
+            true,
         )
         .await?;
 
