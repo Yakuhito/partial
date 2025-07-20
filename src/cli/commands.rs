@@ -21,7 +21,7 @@ enum Commands {
 
         /// Offered amount
         #[arg(long)]
-        offered_amount: u64,
+        offered_amount: String,
 
         /// Asked asset id
         #[arg(long)]
@@ -29,7 +29,7 @@ enum Commands {
 
         /// Asked amount
         #[arg(long)]
-        asked_amount: u64,
+        asked_amount: String,
 
         /// Expiration slot
         #[arg(long)]
