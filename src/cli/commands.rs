@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 
-use crate::{cli_create, cli_view};
+use crate::{cli_create, cli_take, cli_view};
 
 #[derive(Parser)]
 #[command(
@@ -14,6 +14,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    // Create a partial offer
     Create {
         /// Offered asset id
         #[arg(long)]
@@ -43,10 +44,29 @@ enum Commands {
         #[arg(long, default_value = "false")]
         testnet11: bool,
     },
+    // View details of a partial offer
     View {
         /// Offer
         #[arg(long)]
         offer: String,
+
+        /// Use testnet11
+        #[arg(long, default_value = "false")]
+        testnet11: bool,
+    },
+    // Take a partial offer
+    Take {
+        /// Offer
+        #[arg(long)]
+        offer: String,
+
+        /// Amount of requested asset (the one you give) to use
+        #[arg(long)]
+        amount: String,
+
+        /// Fee to include in partial offer
+        #[arg(long, default_value = "0.00042")]
+        fee: String,
 
         /// Use testnet11
         #[arg(long, default_value = "false")]
@@ -79,6 +99,12 @@ pub async fn run_cli() {
             .await
         }
         Commands::View { offer, testnet11 } => cli_view(offer, testnet11).await,
+        Commands::Take {
+            offer,
+            amount,
+            fee,
+            testnet11,
+        } => cli_take(offer, amount, fee, testnet11).await,
     };
 
     if let Err(err) = res {
