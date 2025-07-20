@@ -31,7 +31,7 @@ pub async fn cli_take(
         take_amount = min_take_amount;
     }
 
-    if output_amount > partial_offer.coin.amount {
+    if partial_offer.coin.amount > output_amount {
         println!(
             "New partial offer will be: {}",
             encode_partial_offer(
