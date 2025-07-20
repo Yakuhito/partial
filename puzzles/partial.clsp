@@ -1,0 +1,61 @@
+; partial.clsp by yakuhito
+;; Used to enable partial offers
+
+;; Note that a coin may wrap this in layers such as 1-of-n to enable cancellation
+
+(mod (
+    CAT_MAKER
+    OTHER_ASSET_OFFER_MOD
+    RECEVIER_PUZZLE_HASH
+    MINIMUM_OTHER_ASSET_AMOUNT
+    INNER_CONDITIONS
+    (PRICE_PRECISION . PRECISION) ; allows precision to go up when CAT amount magnitude vs. the other asset's is large (e.g., CAT-XCH)
+    (my_parent my_inner_puzzle_hash my_amount)
+    other_asset_amount 
+    create_coin_rest .
+    cat_maker_solution
+)
+    (include condition_codes.clib)
+    (include sha256tree.clib)
+
+    (defun recreate_coin (ph amount)
+        (i (> amount 0) (list CREATE_COIN ph amount (list ph)) (list REMARK))
+    )
+
+    (c
+        (list ASSERT_PUZZLE_ANNOUNCEMENT (sha256
+            OTHER_ASSET_OFFER_MOD ; sender puzzle hash
+            (sha256tree 
+                (list
+                    my_parent ; nonce
+                    (list
+                        RECEVIER_PUZZLE_HASH
+                        (if (> MINIMUM_OTHER_ASSET_AMOUNT other_asset_amount) (x) other_asset_amount)
+                        (list RECEVIER_PUZZLE_HASH)
+                    ) ; notarized payment
+                )
+            ) ; announcement
+        )) ; check other asset was paid
+        (c
+            (list ASSERT_MY_COIN_ID (coinid
+                my_parent
+                (a CAT_MAKER (c my_inner_puzzle_hash cat_maker_solution))
+                my_amount
+            ))
+            (c
+                (recreate_coin
+                    my_inner_puzzle_hash
+                    (- my_amount (/ (* other_asset_amount PRICE_PRECISION) PRECISION)) ; new amount
+                )
+                (i create_coin_rest
+                    (c
+                        (c CREATE_COIN create_coin_rest)
+                        INNER_CONDITIONS
+                    )
+                    ; else
+                    INNER_CONDITIONS
+                )
+            )
+        )
+    )
+)
