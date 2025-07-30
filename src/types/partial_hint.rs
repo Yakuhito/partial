@@ -44,7 +44,6 @@ pub struct PartialOfferHint<IC> {
     pub lineage_proof: Option<LineageProof>,
     pub offered_asset_info: PartialOfferAssetInfo,
     pub requested_asset_info: PartialOfferAssetInfo,
-    pub minimum_requested_amount: u64,
     pub price_data: PartialPriceData,
     pub maker_puzzle_hash: Bytes32,
     pub inner_conditions: IC,

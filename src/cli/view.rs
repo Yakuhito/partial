@@ -14,18 +14,10 @@ pub async fn cli_view(offer: String, testnet11: bool) -> Result<(), CliError> {
             PartialOffer::reverse_quote(offer.coin.amount, offer.info.price_data) as f64 / 1000.0,
             hex::encode(requested_asset_id)
         );
-        println!(
-            "Minimum accepted amount: {:.3} CATs",
-            offer.info.minimum_requested_amount as f64 / 1000.0
-        );
     } else {
         println!(
             "Remaining requested amount: {:.12} XCH",
             PartialOffer::reverse_quote(offer.coin.amount, offer.info.price_data) as f64 / 1e12,
-        );
-        println!(
-            "Minimum accepted amount: {:.12} XCH",
-            offer.info.minimum_requested_amount as f64 / 1e12,
         );
     }
 
@@ -43,6 +35,7 @@ pub async fn cli_view(offer: String, testnet11: bool) -> Result<(), CliError> {
     }
 
     println!("Expiration: {:?}", offer.info.expiration);
+    println!("Required fee: {:?}", offer.info.required_fee);
     println!("Pricing data: {:?}", offer.info.price_data);
     println!(
         "Maker address: {}",

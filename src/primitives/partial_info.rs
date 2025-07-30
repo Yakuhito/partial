@@ -21,9 +21,9 @@ pub struct PartialOfferInfo {
     pub lineage_proof: Option<LineageProof>,
     pub offered_asset_info: PartialOfferAssetInfo,
     pub requested_asset_info: PartialOfferAssetInfo,
-    pub minimum_requested_amount: u64,
     pub maker_puzzle_hash: Bytes32,
     pub expiration: Option<u64>,
+    pub required_fee: Option<u64>,
     pub price_data: PartialPriceData,
 }
 
@@ -32,18 +32,18 @@ impl PartialOfferInfo {
         lineage_proof: Option<LineageProof>,
         offered_asset_info: PartialOfferAssetInfo,
         requested_asset_info: PartialOfferAssetInfo,
-        minimum_requested_amount: u64,
         maker_puzzle_hash: Bytes32,
         expiration: Option<u64>,
+        required_fee: Option<u64>,
         price_data: PartialPriceData,
     ) -> Self {
         Self {
             lineage_proof,
             offered_asset_info,
             requested_asset_info,
-            minimum_requested_amount,
             maker_puzzle_hash,
             expiration,
+            required_fee,
             price_data,
         }
     }
@@ -126,14 +126,21 @@ impl PartialOfferInfo {
             cat_maker: offered_cat_maker.get_puzzle(ctx)?,
             other_asset_offer_mod,
             receiver_puzzle_hash: self.maker_puzzle_hash,
-            minimum_other_asset_amount: self.minimum_requested_amount,
-            inner_conditions: if let Some(expiration) = self.expiration {
-                Conditions::new().assert_before_seconds_absolute(expiration)
-            } else {
-                Conditions::new()
-            },
+            inner_conditions: self.inner_conditions(),
             price_data: self.price_data,
         })
+    }
+
+    pub fn inner_conditions(&self) -> Conditions {
+        let mut inner_conditions = Conditions::new();
+        if let Some(expiration) = self.expiration {
+            inner_conditions = inner_conditions.assert_before_seconds_absolute(expiration);
+        }
+        if let Some(required_fee) = self.required_fee {
+            inner_conditions = inner_conditions.reserve_fee(required_fee);
+        }
+
+        inner_conditions
     }
 
     pub fn partial_puzzle_hash(&self) -> TreeHash {
@@ -144,12 +151,14 @@ impl PartialOfferInfo {
                 SETTLEMENT_PAYMENT_HASH.into(),
             ),
             receiver_puzzle_hash: self.maker_puzzle_hash,
-            minimum_other_asset_amount: self.minimum_requested_amount,
-            inner_conditions: if let Some(expiration) = self.expiration {
-                // forbidden hack
-                clvm_list!(clvm_list!(85, expiration)).tree_hash()
-            } else {
-                clvm_list!().tree_hash()
+            // forbidden hack
+            inner_conditions: match (self.expiration, self.required_fee) {
+                (Some(expiration), Some(required_fee)) => {
+                    clvm_list!(clvm_list!(85, expiration), clvm_list!(52, required_fee)).tree_hash()
+                }
+                (Some(expiration), None) => clvm_list!(clvm_list!(85, expiration)).tree_hash(),
+                (None, Some(required_fee)) => clvm_list!(clvm_list!(53, required_fee)).tree_hash(),
+                (None, None) => clvm_list!().tree_hash(),
             },
             price_data: self.price_data,
         }
@@ -172,39 +181,31 @@ impl PartialOfferInfo {
             lineage_proof: self.lineage_proof,
             offered_asset_info: self.offered_asset_info,
             requested_asset_info: self.requested_asset_info,
-            minimum_requested_amount: self.minimum_requested_amount,
             maker_puzzle_hash: self.maker_puzzle_hash,
-            inner_conditions: if let Some(expiration) = self.expiration {
-                Conditions::new().assert_before_seconds_absolute(expiration)
-            } else {
-                Conditions::new()
-            },
+            inner_conditions: self.inner_conditions(),
             price_data: self.price_data,
         }
     }
 
     pub fn from_hint(hint: &PartialOfferHint<Conditions>) -> Option<Self> {
-        let expiration = if hint.inner_conditions.is_empty() {
-            None
-        } else if hint.inner_conditions.is_empty() {
-            if let Some(Condition::AssertBeforeSecondsAbsolute(cond)) =
-                hint.inner_conditions.iter().next()
-            {
-                Some(cond.seconds)
-            } else {
-                return None;
-            }
-        } else {
-            return None;
-        };
+        let expiration = hint
+            .inner_conditions
+            .iter()
+            .find_map(Condition::as_assert_before_seconds_absolute)
+            .map(|cond| cond.seconds);
+        let required_fee = hint
+            .inner_conditions
+            .iter()
+            .find_map(Condition::as_reserve_fee)
+            .map(|cond| cond.amount);
 
         Some(Self {
             lineage_proof: hint.lineage_proof,
             offered_asset_info: hint.offered_asset_info,
             requested_asset_info: hint.requested_asset_info,
-            minimum_requested_amount: hint.minimum_requested_amount,
             maker_puzzle_hash: hint.maker_puzzle_hash,
             expiration,
+            required_fee,
             price_data: hint.price_data,
         })
     }

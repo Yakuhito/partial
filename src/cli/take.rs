@@ -3,7 +3,8 @@ use chia_wallet_sdk::{
     driver::{Offer, SpendContext, decode_offer},
 };
 use slot_machine::{
-    CliError, SageClient, assets_xch_only, get_coinset_client, parse_amount, wait_for_coin,
+    CliError, SageClient, assets_xch_and_cat, assets_xch_only, get_coinset_client, parse_amount,
+    wait_for_coin,
 };
 
 use crate::{PartialOffer, assets_cat_only, decode_partial_offer, encode_partial_offer};
@@ -51,9 +52,13 @@ pub async fn cli_take(
                 assets_xch_only(output_amount)
             },
             if let Some(requested_asset_id) = partial_offer.info.requested_asset_info.asset_id {
-                assets_cat_only(hex::encode(requested_asset_id), take_amount)
+                if let Some(required_fee) = partial_offer.info.required_fee {
+                    assets_xch_and_cat(required_fee, hex::encode(requested_asset_id), take_amount)
+                } else {
+                    assets_cat_only(hex::encode(requested_asset_id), take_amount)
+                }
             } else {
-                assets_xch_only(take_amount)
+                assets_xch_only(take_amount + partial_offer.info.required_fee.unwrap_or(0))
             },
             fee,
             None,

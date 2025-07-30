@@ -32,9 +32,13 @@ enum Commands {
         #[arg(long)]
         asked_amount: String,
 
-        /// Expiration slot
+        /// Expiration (partial offers becomes invalid after this timestamp)
         #[arg(long)]
         expiration: Option<u64>,
+
+        /// Minimum asserted fee (paid by the taker for each fill)
+        #[arg(long, default_value = "0.00042")]
+        minimum_asserted_fee: Option<String>,
 
         /// Fee to include in partial offer
         #[arg(long, default_value = "0.00042")]
@@ -64,7 +68,7 @@ enum Commands {
         #[arg(long)]
         amount: String,
 
-        /// Fee to include in partial offer
+        /// Fee to include in partial offer (excl. offer required fee, if any)
         #[arg(long, default_value = "0.00042")]
         fee: String,
 
@@ -98,6 +102,7 @@ pub async fn run_cli() {
             asked_asset_id,
             asked_amount,
             expiration,
+            minimum_asserted_fee,
             fee,
             testnet11,
         } => {
@@ -107,6 +112,7 @@ pub async fn run_cli() {
                 asked_asset_id,
                 asked_amount,
                 expiration,
+                minimum_asserted_fee,
                 fee,
                 testnet11,
             )

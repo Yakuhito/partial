@@ -22,12 +22,14 @@ use crate::{
     PartialOffer, PartialOfferAssetInfo, PartialOfferInfo, PartialPriceData, encode_partial_offer,
 };
 
+#[allow(clippy::too_many_arguments)]
 pub async fn cli_create(
     offered_asset_id_str: Option<String>,
     offered_amount_str: String,
     asked_asset_id_str: Option<String>,
     asked_amount_str: String,
     expiration: Option<u64>,
+    minimum_asserted_fee: Option<String>,
     fee_str: String,
     testnet11: bool,
 ) -> Result<(), CliError> {
@@ -115,9 +117,13 @@ pub async fn cli_create(
         lineage_proof,
         offered_asset_info,
         requested_asset_info,
-        1,
         maker_puzzle_hash,
         expiration,
+        if let Some(minimum_asserted_fee) = minimum_asserted_fee {
+            Some(parse_amount(&minimum_asserted_fee, false)?)
+        } else {
+            None
+        },
         price_data,
     );
 

@@ -123,12 +123,6 @@ impl PartialOffer {
         let args = self.info.to_args(ctx)?;
         let partial_puzzle = ctx.curry(&args)?;
 
-        if other_asset_amount < self.info.minimum_requested_amount {
-            return Err(DriverError::Custom(
-                "Other asset amount is less than minimum amount set by the maker".to_string(),
-            ));
-        }
-
         let partial_ph = self.info.partial_puzzle_hash().into();
         let merkle_tree = MerkleTree::new(&[partial_ph, self.info.maker_puzzle_hash]);
         let inner_puzzle = ctx.curry(P2OneOfManyArgs::new(merkle_tree.root()))?;
@@ -311,6 +305,21 @@ impl PartialOffer {
                 })?,
             );
             let _ = Cat::spend_all(ctx, &[CatSpend::new(cat, inner_spend)])?;
+
+            if self.info.required_fee.unwrap_or(0) > 0 {
+                // offer also gives XCH to pay the required fee
+                let Some(given_xch_coin) = offer.offered_coins().xch.first() else {
+                    return Err(DriverError::IncompatibleAssetInfo);
+                };
+
+                let spend = Spend::new(
+                    offer_puzzle,
+                    ctx.alloc(&SettlementPaymentsSolution::<NodePtr> {
+                        notarized_payments: vec![],
+                    })?,
+                );
+                ctx.spend(*given_xch_coin, spend)?;
+            }
         } else {
             // we're requesting XCH
             let Some(given_coin) = offer.offered_coins().xch.first() else {
@@ -319,10 +328,13 @@ impl PartialOffer {
 
             let (my_spend, notarized_payment) = self.partial_coin_spend(
                 ctx,
-                given_coin.amount,
+                given_coin.amount - self.info.required_fee.unwrap_or(0),
                 Some(CreateCoin::<Memos> {
                     puzzle_hash: SETTLEMENT_PAYMENT_HASH.into(),
-                    amount: Self::quote(given_coin.amount, self.info.price_data),
+                    amount: Self::quote(
+                        given_coin.amount - self.info.required_fee.unwrap_or(0),
+                        self.info.price_data,
+                    ),
                     memos: Memos::None,
                 }),
             )?;
@@ -496,236 +508,239 @@ mod tests {
         };
 
         for expiration in [None, Some(100)] {
-            let taker_bls = sim.bls(asked_amount);
-            let maker_bls = sim.bls(offered_amount);
+            for required_fee in [None, Some(4200000)] {
+                let taker_bls = sim.bls(asked_amount);
+                let maker_bls = sim.bls(offered_amount);
 
-            let inner_conds = Conditions::new()
-                .create_coin(
-                    SETTLEMENT_PAYMENT_HASH.into(),
-                    asked_amount / 4,
-                    Memos::None,
-                )
-                .create_coin(
-                    SETTLEMENT_PAYMENT_HASH.into(),
-                    asked_amount * 3 / 4,
-                    Memos::None,
-                );
-            let (create_conds, taker_cats, taker_xch_coins): (
-                Conditions,
-                Option<Vec<Cat>>,
-                Option<Vec<Coin>>,
-            ) = if asked_is_cat {
-                if asked_is_revocable {
-                    let (create_conds, cats) = Cat::issue_revocable_with_coin(
-                        ctx,
-                        taker_bls.coin.coin_id(),
-                        Bytes32::default(), // hidden puzzle hash
-                        asked_amount,
-                        inner_conds,
-                    )?;
-                    (create_conds, Some(cats), None)
-                } else {
-                    let (create_conds, cats) = Cat::issue_with_coin(
-                        ctx,
-                        taker_bls.coin.coin_id(),
-                        asked_amount,
-                        inner_conds,
-                    )?;
-                    (create_conds, Some(cats), None)
-                }
-            } else {
-                (
-                    inner_conds,
-                    None,
-                    Some(vec![
-                        Coin::new(
+                let inner_conds = Conditions::new()
+                    .create_coin(
+                        SETTLEMENT_PAYMENT_HASH.into(),
+                        asked_amount / 4,
+                        Memos::None,
+                    )
+                    .create_coin(
+                        SETTLEMENT_PAYMENT_HASH.into(),
+                        asked_amount * 3 / 4,
+                        Memos::None,
+                    );
+                let (create_conds, taker_cats, taker_xch_coins): (
+                    Conditions,
+                    Option<Vec<Cat>>,
+                    Option<Vec<Coin>>,
+                ) = if asked_is_cat {
+                    if asked_is_revocable {
+                        let (create_conds, cats) = Cat::issue_revocable_with_coin(
+                            ctx,
                             taker_bls.coin.coin_id(),
-                            SETTLEMENT_PAYMENT_HASH.into(),
-                            asked_amount / 4,
-                        ),
-                        Coin::new(
-                            taker_bls.coin.coin_id(),
-                            SETTLEMENT_PAYMENT_HASH.into(),
-                            asked_amount * 3 / 4,
-                        ),
-                    ]),
-                )
-            };
-            StandardLayer::new(taker_bls.pk).spend(ctx, taker_bls.coin, create_conds)?;
-
-            let (offered_asset_info, source_cat, source_xch_coin) = if offered_is_cat {
-                let inner_conds = Conditions::new().create_coin(
-                    maker_bls.puzzle_hash,
-                    maker_bls.coin.amount,
-                    Memos::None,
-                );
-
-                let (create_conds, cats) = if offered_is_revocable {
-                    Cat::issue_revocable_with_coin(
-                        ctx,
-                        maker_bls.coin.coin_id(),
-                        Bytes32::default(), // hidden puzzle hash
-                        maker_bls.coin.amount,
-                        inner_conds,
-                    )?
-                } else {
-                    Cat::issue_with_coin(
-                        ctx,
-                        maker_bls.coin.coin_id(),
-                        maker_bls.coin.amount,
-                        inner_conds,
-                    )?
-                };
-                StandardLayer::new(maker_bls.pk).spend(ctx, maker_bls.coin, create_conds)?;
-
-                (
-                    PartialOfferAssetInfo::cat(
-                        cats[0].info.asset_id,
-                        cats[0].info.hidden_puzzle_hash,
-                    ),
-                    Some(cats[0]),
-                    None,
-                )
-            } else {
-                (PartialOfferAssetInfo::xch(), None, Some(maker_bls.coin))
-            };
-
-            let requested_asset_info = if let Some(ref taker_cats) = taker_cats {
-                PartialOfferAssetInfo::cat(
-                    taker_cats[0].info.asset_id,
-                    taker_cats[0].info.hidden_puzzle_hash,
-                )
-            } else {
-                PartialOfferAssetInfo::xch()
-            };
-
-            let partial_offer_info = PartialOfferInfo::new(
-                source_cat.map(|cat| cat.child_lineage_proof()),
-                offered_asset_info,
-                requested_asset_info,
-                1,
-                maker_bls.puzzle_hash,
-                expiration,
-                price_data,
-            );
-            let partial_creation_conds = Conditions::new().create_coin(
-                partial_offer_info.inner_puzzle_hash().into(),
-                offered_amount,
-                Memos::None,
-            );
-
-            let partial_offer_parent_id = if let Some(source_xch_coin) = source_xch_coin {
-                StandardLayer::new(maker_bls.pk).spend(
-                    ctx,
-                    source_xch_coin,
-                    partial_creation_conds,
-                )?;
-
-                source_xch_coin.coin_id()
-            } else {
-                let source_cat = source_cat.unwrap();
-
-                let inner_spend = StandardLayer::new(maker_bls.pk)
-                    .spend_with_conditions(ctx, partial_creation_conds)?;
-
-                let _ = Cat::spend_all(ctx, &[CatSpend::new(source_cat, inner_spend)])?;
-
-                source_cat.coin.coin_id()
-            };
-
-            let mut partial_offer =
-                PartialOffer::new(partial_offer_parent_id, offered_amount, partial_offer_info);
-            sim.spend_coins(ctx.take(), &[taker_bls.sk.clone(), maker_bls.sk.clone()])?;
-
-            // Accept partial offer
-            for fill_no in [0, 1] {
-                let given_amount = if fill_no == 0 {
-                    asked_amount / 4
-                } else {
-                    // fill_no = 1 -> we're filling the rest of the offer
-                    asked_amount * 3 / 4
-                };
-                let expected_amount = PartialOffer::quote(given_amount, price_data);
-                if fill_no == 0 {
-                    assert_eq!(expected_amount, offered_amount / 4);
-                } else {
-                    assert_eq!(expected_amount, offered_amount * 3 / 4);
-                }
-
-                let mut asset_info = AssetInfo::new();
-                if let Some(ref taker_cats) = taker_cats {
-                    asset_info.insert_cat(
-                        taker_cats[fill_no].info.asset_id,
-                        CatAssetInfo::new(taker_cats[fill_no].info.hidden_puzzle_hash),
-                    )?;
-                }
-                if let Some(source_cat) = source_cat {
-                    asset_info.insert_cat(
-                        source_cat.info.asset_id,
-                        CatAssetInfo::new(source_cat.info.hidden_puzzle_hash),
-                    )?;
-                }
-
-                let mut offered_coins = OfferCoins::new();
-                if let Some(ref taker_cats) = taker_cats {
-                    offered_coins
-                        .cats
-                        .insert(taker_cats[fill_no].info.asset_id, vec![taker_cats[fill_no]]);
-                } else if let Some(ref taker_xch_coins) = taker_xch_coins {
-                    offered_coins.xch.push(taker_xch_coins[fill_no]);
-                }
-
-                let notarized_payment = partial_offer.notatized_payment(ctx, expected_amount)?;
-                let notarized_payment_ptr = ctx.alloc(&notarized_payment)?;
-
-                let mut requested_payments = RequestedPayments::new();
-                if let Some(offered_asset_id) = offered_asset_info.asset_id {
-                    requested_payments
-                        .cats
-                        .insert(offered_asset_id, vec![notarized_payment]);
-                } else {
-                    requested_payments.xch.push(notarized_payment);
-                };
-
-                ensure_conditions_met(
-                    ctx,
-                    &mut sim,
-                    Conditions::new().assert_puzzle_announcement(announcement_id(
-                        PartialOfferInfo::full_asset_puzzle_hash(
-                            offered_asset_info,
-                            SETTLEMENT_PAYMENT_HASH.into(),
-                        ),
-                        ctx.tree_hash(notarized_payment_ptr).to_vec(),
-                    )),
-                    0,
-                )?;
-
-                let offer = Offer::new(
-                    SpendBundle::new(vec![], Signature::default()),
-                    offered_coins,
-                    requested_payments,
-                    asset_info,
-                );
-
-                let new_partial_offer = partial_offer.child(offered_amount - expected_amount);
-                let spend_bundle = partial_offer.accept_offer(ctx, offer)?;
-                benchmark.add_spends(
-                    ctx,
-                    &mut sim,
-                    spend_bundle.coin_spends,
-                    if fill_no == 0 {
-                        "partial_fill"
+                            Bytes32::default(), // hidden puzzle hash
+                            asked_amount,
+                            inner_conds,
+                        )?;
+                        (create_conds, Some(cats), None)
                     } else {
-                        "full_fill"
-                    },
-                    &[taker_bls.sk.clone()],
-                )?;
+                        let (create_conds, cats) = Cat::issue_with_coin(
+                            ctx,
+                            taker_bls.coin.coin_id(),
+                            asked_amount,
+                            inner_conds,
+                        )?;
+                        (create_conds, Some(cats), None)
+                    }
+                } else {
+                    (
+                        inner_conds,
+                        None,
+                        Some(vec![
+                            Coin::new(
+                                taker_bls.coin.coin_id(),
+                                SETTLEMENT_PAYMENT_HASH.into(),
+                                asked_amount / 4,
+                            ),
+                            Coin::new(
+                                taker_bls.coin.coin_id(),
+                                SETTLEMENT_PAYMENT_HASH.into(),
+                                asked_amount * 3 / 4,
+                            ),
+                        ]),
+                    )
+                };
+                StandardLayer::new(taker_bls.pk).spend(ctx, taker_bls.coin, create_conds)?;
 
-                if fill_no == 0 {
-                    assert!(sim.coin_state(new_partial_offer.coin.coin_id()).is_some());
+                let (offered_asset_info, source_cat, source_xch_coin) = if offered_is_cat {
+                    let inner_conds = Conditions::new().create_coin(
+                        maker_bls.puzzle_hash,
+                        maker_bls.coin.amount,
+                        Memos::None,
+                    );
+
+                    let (create_conds, cats) = if offered_is_revocable {
+                        Cat::issue_revocable_with_coin(
+                            ctx,
+                            maker_bls.coin.coin_id(),
+                            Bytes32::default(), // hidden puzzle hash
+                            maker_bls.coin.amount,
+                            inner_conds,
+                        )?
+                    } else {
+                        Cat::issue_with_coin(
+                            ctx,
+                            maker_bls.coin.coin_id(),
+                            maker_bls.coin.amount,
+                            inner_conds,
+                        )?
+                    };
+                    StandardLayer::new(maker_bls.pk).spend(ctx, maker_bls.coin, create_conds)?;
+
+                    (
+                        PartialOfferAssetInfo::cat(
+                            cats[0].info.asset_id,
+                            cats[0].info.hidden_puzzle_hash,
+                        ),
+                        Some(cats[0]),
+                        None,
+                    )
+                } else {
+                    (PartialOfferAssetInfo::xch(), None, Some(maker_bls.coin))
+                };
+
+                let requested_asset_info = if let Some(ref taker_cats) = taker_cats {
+                    PartialOfferAssetInfo::cat(
+                        taker_cats[0].info.asset_id,
+                        taker_cats[0].info.hidden_puzzle_hash,
+                    )
+                } else {
+                    PartialOfferAssetInfo::xch()
+                };
+
+                let partial_offer_info = PartialOfferInfo::new(
+                    source_cat.map(|cat| cat.child_lineage_proof()),
+                    offered_asset_info,
+                    requested_asset_info,
+                    maker_bls.puzzle_hash,
+                    expiration,
+                    required_fee,
+                    price_data,
+                );
+                let partial_creation_conds = Conditions::new().create_coin(
+                    partial_offer_info.inner_puzzle_hash().into(),
+                    offered_amount,
+                    Memos::None,
+                );
+
+                let partial_offer_parent_id = if let Some(source_xch_coin) = source_xch_coin {
+                    StandardLayer::new(maker_bls.pk).spend(
+                        ctx,
+                        source_xch_coin,
+                        partial_creation_conds,
+                    )?;
+
+                    source_xch_coin.coin_id()
+                } else {
+                    let source_cat = source_cat.unwrap();
+
+                    let inner_spend = StandardLayer::new(maker_bls.pk)
+                        .spend_with_conditions(ctx, partial_creation_conds)?;
+
+                    let _ = Cat::spend_all(ctx, &[CatSpend::new(source_cat, inner_spend)])?;
+
+                    source_cat.coin.coin_id()
+                };
+
+                let mut partial_offer =
+                    PartialOffer::new(partial_offer_parent_id, offered_amount, partial_offer_info);
+                sim.spend_coins(ctx.take(), &[taker_bls.sk.clone(), maker_bls.sk.clone()])?;
+
+                // Accept partial offer
+                for fill_no in [0, 1] {
+                    let given_amount = if fill_no == 0 {
+                        asked_amount / 4
+                    } else {
+                        // fill_no = 1 -> we're filling the rest of the offer
+                        asked_amount * 3 / 4
+                    };
+                    let expected_amount = PartialOffer::quote(given_amount, price_data);
+                    if fill_no == 0 {
+                        assert_eq!(expected_amount, offered_amount / 4);
+                    } else {
+                        assert_eq!(expected_amount, offered_amount * 3 / 4);
+                    }
+
+                    let mut asset_info = AssetInfo::new();
+                    if let Some(ref taker_cats) = taker_cats {
+                        asset_info.insert_cat(
+                            taker_cats[fill_no].info.asset_id,
+                            CatAssetInfo::new(taker_cats[fill_no].info.hidden_puzzle_hash),
+                        )?;
+                    }
+                    if let Some(source_cat) = source_cat {
+                        asset_info.insert_cat(
+                            source_cat.info.asset_id,
+                            CatAssetInfo::new(source_cat.info.hidden_puzzle_hash),
+                        )?;
+                    }
+
+                    let mut offered_coins = OfferCoins::new();
+                    if let Some(ref taker_cats) = taker_cats {
+                        offered_coins
+                            .cats
+                            .insert(taker_cats[fill_no].info.asset_id, vec![taker_cats[fill_no]]);
+                    } else if let Some(ref taker_xch_coins) = taker_xch_coins {
+                        offered_coins.xch.push(taker_xch_coins[fill_no]);
+                    }
+
+                    let notarized_payment =
+                        partial_offer.notatized_payment(ctx, expected_amount)?;
+                    let notarized_payment_ptr = ctx.alloc(&notarized_payment)?;
+
+                    let mut requested_payments = RequestedPayments::new();
+                    if let Some(offered_asset_id) = offered_asset_info.asset_id {
+                        requested_payments
+                            .cats
+                            .insert(offered_asset_id, vec![notarized_payment]);
+                    } else {
+                        requested_payments.xch.push(notarized_payment);
+                    };
+
+                    ensure_conditions_met(
+                        ctx,
+                        &mut sim,
+                        Conditions::new().assert_puzzle_announcement(announcement_id(
+                            PartialOfferInfo::full_asset_puzzle_hash(
+                                offered_asset_info,
+                                SETTLEMENT_PAYMENT_HASH.into(),
+                            ),
+                            ctx.tree_hash(notarized_payment_ptr).to_vec(),
+                        )),
+                        required_fee.unwrap_or(0),
+                    )?;
+
+                    let offer = Offer::new(
+                        SpendBundle::new(vec![], Signature::default()),
+                        offered_coins,
+                        requested_payments,
+                        asset_info,
+                    );
+
+                    let new_partial_offer = partial_offer.child(offered_amount - expected_amount);
+                    let spend_bundle = partial_offer.accept_offer(ctx, offer)?;
+                    benchmark.add_spends(
+                        ctx,
+                        &mut sim,
+                        spend_bundle.coin_spends,
+                        if fill_no == 0 {
+                            "partial_fill"
+                        } else {
+                            "full_fill"
+                        },
+                        &[taker_bls.sk.clone()],
+                    )?;
+
+                    if fill_no == 0 {
+                        assert!(sim.coin_state(new_partial_offer.coin.coin_id()).is_some());
+                    }
+
+                    partial_offer = new_partial_offer;
                 }
-
-                partial_offer = new_partial_offer;
             }
         }
 
