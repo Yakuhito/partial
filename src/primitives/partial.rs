@@ -326,15 +326,14 @@ impl PartialOffer {
                 return Err(DriverError::IncompatibleAssetInfo);
             };
 
+            let other_asset_amount = given_coin.amount - self.info.required_fee.unwrap_or(0);
+
             let (my_spend, notarized_payment) = self.partial_coin_spend(
                 ctx,
-                given_coin.amount - self.info.required_fee.unwrap_or(0),
+                other_asset_amount,
                 Some(CreateCoin::<Memos> {
                     puzzle_hash: SETTLEMENT_PAYMENT_HASH.into(),
-                    amount: Self::quote(
-                        given_coin.amount - self.info.required_fee.unwrap_or(0),
-                        self.info.price_data,
-                    ),
+                    amount: Self::quote(other_asset_amount, self.info.price_data),
                     memos: Memos::None,
                 }),
             )?;
@@ -457,7 +456,7 @@ mod tests {
             AssetInfo, CatAssetInfo, OfferCoins, RequestedPayments, SpendWithConditions,
             StandardLayer,
         },
-        test::{Benchmark, Simulator},
+        test::{Benchmark, Simulator, print_spend_bundle_to_file},
         types::{Conditions, announcement_id},
     };
     use clvm_traits::clvm_quote;
@@ -740,6 +739,11 @@ mod tests {
 
                     let new_partial_offer = partial_offer.child(offered_amount - expected_amount);
                     let spend_bundle = partial_offer.accept_offer(ctx, offer)?;
+                    print_spend_bundle_to_file(
+                        spend_bundle.coin_spends.clone(),
+                        spend_bundle.aggregated_signature.clone(),
+                        "sb.debug",
+                    );
                     benchmark.add_spends(
                         ctx,
                         &mut sim,
@@ -753,7 +757,11 @@ mod tests {
                     )?;
 
                     if partial_fill_only {
+                        println!("partial fill"); // todo: debug
+                        println!("required fee: {:?}", new_partial_offer.info.required_fee); // todo: debug
+                        println!("expiration: {:?}", new_partial_offer.info.expiration); // todo: debug
                         assert!(sim.coin_state(new_partial_offer.coin.coin_id()).is_some());
+                        println!("/\\ OK (so ignore)"); // todo: debug
                     }
 
                     partial_offer = new_partial_offer;

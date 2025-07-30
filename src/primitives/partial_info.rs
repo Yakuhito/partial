@@ -157,8 +157,8 @@ impl PartialOfferInfo {
                     clvm_list!(clvm_list!(85, expiration), clvm_list!(52, required_fee)).tree_hash()
                 }
                 (Some(expiration), None) => clvm_list!(clvm_list!(85, expiration)).tree_hash(),
-                (None, Some(required_fee)) => clvm_list!(clvm_list!(53, required_fee)).tree_hash(),
-                (None, None) => clvm_list!().tree_hash(),
+                (None, Some(required_fee)) => clvm_list!(clvm_list!(52, required_fee)).tree_hash(),
+                (None, None) => ().tree_hash(),
             },
             price_data: self.price_data,
         }
