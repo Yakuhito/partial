@@ -523,11 +523,22 @@ mod tests {
                         asked_amount * 3 / 4,
                         Memos::None,
                     );
-                let (create_conds, taker_cats, taker_xch_coins): (
+                #[allow(clippy::type_complexity)]
+                let (create_conds, taker_cats, taker_fee_coins, taker_xch_coins): (
                     Conditions,
                     Option<Vec<Cat>>,
                     Option<Vec<Coin>>,
+                    Option<Vec<Coin>>,
                 ) = if asked_is_cat {
+                    let taker_fee_coins = if let Some(required_fee) = required_fee {
+                        let first_coin = sim.new_coin(SETTLEMENT_PAYMENT_HASH.into(), required_fee);
+                        let second_coin =
+                            sim.new_coin(SETTLEMENT_PAYMENT_HASH.into(), required_fee);
+                        Some(vec![first_coin, second_coin])
+                    } else {
+                        None
+                    };
+
                     if asked_is_revocable {
                         let (create_conds, cats) = Cat::issue_revocable_with_coin(
                             ctx,
@@ -536,7 +547,7 @@ mod tests {
                             asked_amount,
                             inner_conds,
                         )?;
-                        (create_conds, Some(cats), None)
+                        (create_conds, Some(cats), taker_fee_coins, None)
                     } else {
                         let (create_conds, cats) = Cat::issue_with_coin(
                             ctx,
@@ -544,22 +555,23 @@ mod tests {
                             asked_amount,
                             inner_conds,
                         )?;
-                        (create_conds, Some(cats), None)
+                        (create_conds, Some(cats), taker_fee_coins, None)
                     }
                 } else {
                     (
                         inner_conds,
                         None,
+                        None,
                         Some(vec![
                             Coin::new(
                                 taker_bls.coin.coin_id(),
                                 SETTLEMENT_PAYMENT_HASH.into(),
-                                asked_amount / 4,
+                                asked_amount / 4 + required_fee.unwrap_or(0),
                             ),
                             Coin::new(
                                 taker_bls.coin.coin_id(),
                                 SETTLEMENT_PAYMENT_HASH.into(),
-                                asked_amount * 3 / 4,
+                                asked_amount * 3 / 4 + required_fee.unwrap_or(0),
                             ),
                         ]),
                     )
@@ -651,19 +663,21 @@ mod tests {
                 sim.spend_coins(ctx.take(), &[taker_bls.sk.clone(), maker_bls.sk.clone()])?;
 
                 // Accept partial offer
-                for fill_no in [0, 1] {
-                    let given_amount = if fill_no == 0 {
+                for partial_fill_only in [false, true] {
+                    let given_amount = if partial_fill_only {
                         asked_amount / 4
                     } else {
                         // fill_no = 1 -> we're filling the rest of the offer
                         asked_amount * 3 / 4
                     };
                     let expected_amount = PartialOffer::quote(given_amount, price_data);
-                    if fill_no == 0 {
+                    if partial_fill_only {
                         assert_eq!(expected_amount, offered_amount / 4);
                     } else {
                         assert_eq!(expected_amount, offered_amount * 3 / 4);
                     }
+
+                    let fill_no = if partial_fill_only { 0 } else { 1 };
 
                     let mut asset_info = AssetInfo::new();
                     if let Some(ref taker_cats) = taker_cats {
@@ -686,6 +700,9 @@ mod tests {
                             .insert(taker_cats[fill_no].info.asset_id, vec![taker_cats[fill_no]]);
                     } else if let Some(ref taker_xch_coins) = taker_xch_coins {
                         offered_coins.xch.push(taker_xch_coins[fill_no]);
+                    }
+                    if let Some(ref taker_fee_coins) = taker_fee_coins {
+                        offered_coins.xch.push(taker_fee_coins[fill_no]);
                     }
 
                     let notarized_payment =
@@ -711,7 +728,7 @@ mod tests {
                             ),
                             ctx.tree_hash(notarized_payment_ptr).to_vec(),
                         )),
-                        required_fee.unwrap_or(0),
+                        0,
                     )?;
 
                     let offer = Offer::new(
@@ -727,7 +744,7 @@ mod tests {
                         ctx,
                         &mut sim,
                         spend_bundle.coin_spends,
-                        if fill_no == 0 {
+                        if partial_fill_only {
                             "partial_fill"
                         } else {
                             "full_fill"
@@ -735,7 +752,7 @@ mod tests {
                         &[taker_bls.sk.clone()],
                     )?;
 
-                    if fill_no == 0 {
+                    if partial_fill_only {
                         assert!(sim.coin_state(new_partial_offer.coin.coin_id()).is_some());
                     }
 
