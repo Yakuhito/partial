@@ -508,18 +508,23 @@ mod tests {
 
         for expiration in [None, Some(100)] {
             for required_fee in [None, Some(4200000)] {
-                let taker_bls = sim.bls(asked_amount);
+                let offset = if asked_is_cat {
+                    0
+                } else {
+                    required_fee.unwrap_or(0)
+                };
+                let taker_bls = sim.bls(asked_amount + offset * 2);
                 let maker_bls = sim.bls(offered_amount);
 
                 let inner_conds = Conditions::new()
                     .create_coin(
                         SETTLEMENT_PAYMENT_HASH.into(),
-                        asked_amount / 4,
+                        asked_amount / 4 + offset,
                         Memos::None,
                     )
                     .create_coin(
                         SETTLEMENT_PAYMENT_HASH.into(),
-                        asked_amount * 3 / 4,
+                        asked_amount * 3 / 4 + offset,
                         Memos::None,
                     );
                 #[allow(clippy::type_complexity)]
