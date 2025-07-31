@@ -456,7 +456,7 @@ mod tests {
             AssetInfo, CatAssetInfo, OfferCoins, RequestedPayments, SpendWithConditions,
             StandardLayer,
         },
-        test::{Benchmark, Simulator, print_spend_bundle_to_file},
+        test::{Benchmark, Simulator},
         types::{Conditions, announcement_id},
     };
     use clvm_traits::clvm_quote;
@@ -662,7 +662,7 @@ mod tests {
                 sim.spend_coins(ctx.take(), &[taker_bls.sk.clone(), maker_bls.sk.clone()])?;
 
                 // Accept partial offer
-                for partial_fill_only in [false, true] {
+                for partial_fill_only in [true, false] {
                     let given_amount = if partial_fill_only {
                         asked_amount / 4
                     } else {
@@ -739,11 +739,6 @@ mod tests {
 
                     let new_partial_offer = partial_offer.child(offered_amount - expected_amount);
                     let spend_bundle = partial_offer.accept_offer(ctx, offer)?;
-                    print_spend_bundle_to_file(
-                        spend_bundle.coin_spends.clone(),
-                        spend_bundle.aggregated_signature.clone(),
-                        "sb.debug",
-                    );
                     benchmark.add_spends(
                         ctx,
                         &mut sim,
@@ -757,11 +752,7 @@ mod tests {
                     )?;
 
                     if partial_fill_only {
-                        println!("partial fill"); // todo: debug
-                        println!("required fee: {:?}", new_partial_offer.info.required_fee); // todo: debug
-                        println!("expiration: {:?}", new_partial_offer.info.expiration); // todo: debug
                         assert!(sim.coin_state(new_partial_offer.coin.coin_id()).is_some());
-                        println!("/\\ OK (so ignore)"); // todo: debug
                     }
 
                     partial_offer = new_partial_offer;
