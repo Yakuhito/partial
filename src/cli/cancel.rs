@@ -62,11 +62,15 @@ pub async fn cli_cancel(offer: String, fee_str: String, testnet11: bool) -> Resu
         .delegated_inner_spend(&mut ctx, inner_spend)?;
     partial_offer.claw_back(&mut ctx, inner_spend)?;
 
-    let spends = ctx.take();
+    let mut spends = ctx.take();
     let resp = sage.sign_coin_spends(spends.clone(), false, true).await?;
+    spends.extend(partial_offer.spend_bundle.coin_spends);
 
     let sig_from_signing = hex_string_to_signature(&resp.spend_bundle.aggregated_signature)?;
-    let sb = offer.take(SpendBundle::new(spends, security_sig + &sig_from_signing));
+    let sb = offer.take(SpendBundle::new(
+        spends,
+        security_sig + &sig_from_signing + &partial_offer.spend_bundle.aggregated_signature,
+    ));
 
     println!("Submitting transaction...");
     let client = get_coinset_client(testnet11);
