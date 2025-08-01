@@ -6,7 +6,7 @@
 (mod (
     CAT_MAKER
     OTHER_ASSET_OFFER_MOD
-    RECEVIER_PUZZLE_HASH
+    RECEIVER_PUZZLE_HASH
     INNER_CONDITIONS
     (PRICE_PRECISION . PRECISION) ; allows precision to go up when CAT amount magnitude vs. the other asset's is large (e.g., CAT-XCH)
     (my_parent my_inner_puzzle_hash my_amount)
@@ -28,9 +28,9 @@
                 (list
                     my_parent ; nonce
                     (list
-                        RECEVIER_PUZZLE_HASH
+                        RECEIVER_PUZZLE_HASH
                         (if (> other_asset_amount 0) other_asset_amount (x))
-                        (list RECEVIER_PUZZLE_HASH)
+                        (list RECEIVER_PUZZLE_HASH)
                     ) ; notarized payment
                 )
             ) ; announcement
