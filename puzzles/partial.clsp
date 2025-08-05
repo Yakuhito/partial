@@ -4,7 +4,7 @@
 ;; Note that a coin may wrap this in layers such as 1-of-n to enable cancellation
 
 (mod (
-    CAT_MAKER
+    CAT_MAKER  ; I would avoid using the term "maker" here as it will overload the same term referring to the party in the offer
     OTHER_ASSET_OFFER_MOD
     RECEIVER_PUZZLE_HASH
     INNER_CONDITIONS
@@ -22,15 +22,18 @@
     )
 
     (c
+        ; I might like the announcement generation to be plugin-able
+        ; You can potentially make partial takes of multiple assets
+        ; If it's a 1 type for 2 type trade, for example, you could accept 50% of each reqested type for 50% of your own
         (list ASSERT_PUZZLE_ANNOUNCEMENT (sha256
             OTHER_ASSET_OFFER_MOD ; sender puzzle hash
             (sha256tree 
                 (list
                     my_parent ; nonce
-                    (list
+                    (list  ; I know you have tests for this but I'm pretty sure the notarized payment format is (nonce . ((ph amt ...) ...))
                         RECEIVER_PUZZLE_HASH
                         (if (> other_asset_amount 0) other_asset_amount (x))
-                        (list RECEIVER_PUZZLE_HASH)
+                        (list RECEIVER_PUZZLE_HASH)  ; Assuming a memo format could be dangerous for future extensibility
                     ) ; notarized payment
                 )
             ) ; announcement
@@ -38,14 +41,24 @@
         (c
             (list ASSERT_MY_COIN_ID (coinid
                 my_parent
+                ; Why not just curry in the inner puzzle hash?
+                ; You can assume an honest setup presumably based on the rest of the curried arguments
+                ; parent and amount can be asserted via their own conditions
+                ; and you can lose the coin ID calculation and the CAT_MAKER entirely.
                 (a CAT_MAKER (c my_inner_puzzle_hash cat_maker_solution))
                 my_amount
             ))
             (c
                 (recreate_coin
                     my_inner_puzzle_hash
+                    ; I'm too lazy to do it, but have you thought about all of the potential implications of rounding here?
+                    ; Like could someone end up getting a better deal than they should by taking advantage of some 1.9 == 1 shenanigans?
                     (- my_amount (/ (* other_asset_amount PRICE_PRECISION) PRECISION)) ; new amount
                 )
+                ; Am I missing something?  What's the point of this?
+                ; The recreation of the offered asset is already happening and should account for the non-sent amount.
+                ; So why bother with the extra create coin here whos amount I think can only be zero?
+                ; And the solution is entirely malleable - anyone could redirect this to themselves or add/delete memos to mess with the intended recpient.
                 (i create_coin_rest
                     (c
                         (c CREATE_COIN create_coin_rest)
