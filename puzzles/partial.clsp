@@ -11,7 +11,7 @@
     (PRICE_PRECISION . PRECISION) ; allows precision to go up when CAT amount magnitude vs. the other asset's is large (e.g., CAT-XCH)
     (my_parent my_inner_puzzle_hash my_amount)
     other_asset_amount 
-    create_coin_rest .
+    (@ create_coin_rest (create_coin_amount_ph create_coin_amount . other_stuff)) .
     cat_maker_solution
 )
     (include condition_codes.clib)
@@ -46,7 +46,7 @@
                     my_inner_puzzle_hash
                     (- my_amount (/ (* other_asset_amount PRICE_PRECISION) PRECISION)) ; new amount
                 )
-                (i create_coin_rest
+                (i (if create_coin_rest (> create_coin_amount -1) ())
                     (c
                         (c CREATE_COIN create_coin_rest)
                         INNER_CONDITIONS
