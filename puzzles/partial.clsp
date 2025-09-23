@@ -7,12 +7,14 @@
     CAT_MAKER
     OTHER_ASSET_OFFER_MOD
     RECEIVER_PUZZLE_HASH
-    INNER_CONDITIONS
+    INNER_PUZZLE
+    MIN_OTHER_ASSET_AMOUNT_MINUS_ONE
     (PRICE_PRECISION . PRECISION) ; allows precision to go up when CAT amount magnitude vs. the other asset's is large (e.g., CAT-XCH)
     (my_parent my_inner_puzzle_hash my_amount)
     other_asset_amount 
-    (@ create_coin_rest (create_coin_amount_ph create_coin_amount . other_stuff)) .
-    cat_maker_solution
+    (@ create_coin_rest (create_coin_amount_ph create_coin_amount . other_stuff))
+    cat_maker_solution .
+    inner_puzzle_solution
 )
     (include condition_codes.clib)
     (include sha256tree.clib)
@@ -29,7 +31,7 @@
                     my_parent ; nonce
                     (list
                         RECEIVER_PUZZLE_HASH
-                        (if (> other_asset_amount 0) other_asset_amount (x))
+                        (if (> other_asset_amount MIN_OTHER_ASSET_AMOUNT_MINUS_ONE) other_asset_amount (x))
                         (list RECEIVER_PUZZLE_HASH)
                     ) ; notarized payment
                 )
@@ -49,10 +51,10 @@
                 (i (if create_coin_rest (> create_coin_amount -1) ())
                     (c
                         (c CREATE_COIN create_coin_rest)
-                        INNER_CONDITIONS
+                        (a INNER_PUZZLE inner_puzzle_solution)
                     )
                     ; else
-                    INNER_CONDITIONS
+                    (a INNER_PUZZLE inner_puzzle_solution)
                 )
             )
         )
