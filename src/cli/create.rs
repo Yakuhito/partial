@@ -32,6 +32,7 @@ pub async fn cli_create(
     minimum_asserted_fee: Option<String>,
     fee_str: String,
     testnet11: bool,
+    min_other_asset_amount: String,
 ) -> Result<(), CliError> {
     let offered_asset_id = if let Some(offered_asset_id_str) = &offered_asset_id_str {
         Some(hex_string_to_bytes32(offered_asset_id_str)?)
@@ -44,6 +45,8 @@ pub async fn cli_create(
     } else {
         None
     };
+
+    let min_other_asset_amount_minus_one = parse_amount(&min_other_asset_amount, true)? - 1;
 
     if offered_asset_id == asked_asset_id {
         return Err(CliError::Custom(
@@ -125,6 +128,7 @@ pub async fn cli_create(
             None
         },
         price_data,
+        min_other_asset_amount_minus_one,
     );
 
     let (security_sk, security_coin) =
