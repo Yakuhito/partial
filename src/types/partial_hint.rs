@@ -40,12 +40,13 @@ impl PartialOfferAssetInfo {
 //   (puzzle hash = 0101..01)
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
-pub struct PartialOfferHint<IC> {
+pub struct PartialOfferHint<IP> {
     pub lineage_proof: Option<LineageProof>,
     pub offered_asset_info: PartialOfferAssetInfo,
     pub requested_asset_info: PartialOfferAssetInfo,
     pub price_data: PartialPriceData,
     pub maker_puzzle_hash: Bytes32,
-    pub inner_conditions: IC,
+    pub inner_puzzle: IP,
+    pub min_other_asset_amount_minus_one: u64,
     // No #[clvm(rest)] here either
 }

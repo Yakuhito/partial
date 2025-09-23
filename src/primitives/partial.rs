@@ -141,6 +141,7 @@ impl PartialOffer {
                 create_coin_rest: create_coin
                     .map(|cc| clvm_tuple!(cc.puzzle_hash, clvm_tuple!(cc.amount, cc.memos))),
                 cat_maker_solution: (),
+                inner_puzzle_solution: (),
             },
         };
         let inner_solution = ctx.alloc(&inner_solution)?;
@@ -636,6 +637,7 @@ mod tests {
                     expiration,
                     required_fee,
                     price_data,
+                    0,
                 );
                 let partial_creation_conds = Conditions::new().create_coin(
                     partial_offer_info.inner_puzzle_hash().into(),

@@ -11,7 +11,7 @@ use chia_wallet_sdk::{
         puzzles::{P2OneOfManyArgs, RevocationArgs},
     },
 };
-use clvm_traits::clvm_list;
+use clvm_traits::{clvm_list, clvm_quote};
 use clvmr::NodePtr;
 
 use crate::{PartialOfferAssetInfo, PartialOfferHint, PartialPriceData, PartialPuzzleArgs};
@@ -25,9 +25,11 @@ pub struct PartialOfferInfo {
     pub expiration: Option<u64>,
     pub required_fee: Option<u64>,
     pub price_data: PartialPriceData,
+    pub min_other_asset_amount_minus_one: u64,
 }
 
 impl PartialOfferInfo {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         lineage_proof: Option<LineageProof>,
         offered_asset_info: PartialOfferAssetInfo,
@@ -36,6 +38,7 @@ impl PartialOfferInfo {
         expiration: Option<u64>,
         required_fee: Option<u64>,
         price_data: PartialPriceData,
+        min_other_asset_amount_minus_one: u64,
     ) -> Self {
         Self {
             lineage_proof,
@@ -45,6 +48,7 @@ impl PartialOfferInfo {
             expiration,
             required_fee,
             price_data,
+            min_other_asset_amount_minus_one,
         }
     }
 
@@ -116,7 +120,7 @@ impl PartialOfferInfo {
     pub fn to_args(
         &self,
         ctx: &mut SpendContext,
-    ) -> Result<PartialPuzzleArgs<NodePtr, Conditions>, DriverError> {
+    ) -> Result<PartialPuzzleArgs<NodePtr, (i8, Conditions)>, DriverError> {
         let offered_cat_maker = Self::to_cat_maker(self.offered_asset_info);
 
         let other_asset_offer_mod =
@@ -126,12 +130,13 @@ impl PartialOfferInfo {
             cat_maker: offered_cat_maker.get_puzzle(ctx)?,
             other_asset_offer_mod,
             receiver_puzzle_hash: self.maker_puzzle_hash,
-            inner_conditions: self.inner_conditions(),
+            inner_puzzle: self.quoted_inner_conditions(),
             price_data: self.price_data,
+            min_other_asset_amount_minus_one: self.min_other_asset_amount_minus_one,
         })
     }
 
-    pub fn inner_conditions(&self) -> Conditions {
+    pub fn quoted_inner_conditions(&self) -> (i8, Conditions) {
         let mut inner_conditions = Conditions::new();
         if let Some(expiration) = self.expiration {
             inner_conditions = inner_conditions.assert_before_seconds_absolute(expiration);
@@ -140,7 +145,7 @@ impl PartialOfferInfo {
             inner_conditions = inner_conditions.reserve_fee(required_fee);
         }
 
-        inner_conditions
+        clvm_quote!(inner_conditions)
     }
 
     pub fn partial_puzzle_hash(&self) -> TreeHash {
@@ -152,15 +157,22 @@ impl PartialOfferInfo {
             ),
             receiver_puzzle_hash: self.maker_puzzle_hash,
             // forbidden hack
-            inner_conditions: match (self.expiration, self.required_fee) {
-                (Some(expiration), Some(required_fee)) => {
-                    clvm_list!(clvm_list!(85, expiration), clvm_list!(52, required_fee)).tree_hash()
+            inner_puzzle: match (self.expiration, self.required_fee) {
+                (Some(expiration), Some(required_fee)) => clvm_quote!(clvm_list!(
+                    clvm_list!(85, expiration),
+                    clvm_list!(52, required_fee)
+                ))
+                .tree_hash(),
+                (Some(expiration), None) => {
+                    clvm_quote!(clvm_list!(clvm_list!(85, expiration))).tree_hash()
                 }
-                (Some(expiration), None) => clvm_list!(clvm_list!(85, expiration)).tree_hash(),
-                (None, Some(required_fee)) => clvm_list!(clvm_list!(52, required_fee)).tree_hash(),
-                (None, None) => ().tree_hash(),
+                (None, Some(required_fee)) => {
+                    clvm_quote!(clvm_list!(clvm_list!(52, required_fee))).tree_hash()
+                }
+                (None, None) => clvm_quote!(()).tree_hash(),
             },
             price_data: self.price_data,
+            min_other_asset_amount_minus_one: self.min_other_asset_amount_minus_one,
         }
         .curry_tree_hash()
     }
@@ -176,25 +188,28 @@ impl PartialOfferInfo {
         Self::full_asset_puzzle_hash(self.offered_asset_info, self.inner_puzzle_hash().into())
     }
 
-    pub fn to_hint(&self) -> PartialOfferHint<Conditions> {
+    pub fn to_hint(&self) -> PartialOfferHint<(i8, Conditions)> {
         PartialOfferHint {
             lineage_proof: self.lineage_proof,
             offered_asset_info: self.offered_asset_info,
             requested_asset_info: self.requested_asset_info,
             maker_puzzle_hash: self.maker_puzzle_hash,
-            inner_conditions: self.inner_conditions(),
+            inner_puzzle: self.quoted_inner_conditions(),
             price_data: self.price_data,
+            min_other_asset_amount_minus_one: self.min_other_asset_amount_minus_one,
         }
     }
 
-    pub fn from_hint(hint: &PartialOfferHint<Conditions>) -> Option<Self> {
+    pub fn from_hint(hint: &PartialOfferHint<(i8, Conditions)>) -> Option<Self> {
         let expiration = hint
-            .inner_conditions
+            .inner_puzzle
+            .1
             .iter()
             .find_map(Condition::as_assert_before_seconds_absolute)
             .map(|cond| cond.seconds);
         let required_fee = hint
-            .inner_conditions
+            .inner_puzzle
+            .1
             .iter()
             .find_map(Condition::as_reserve_fee)
             .map(|cond| cond.amount);
@@ -207,6 +222,7 @@ impl PartialOfferInfo {
             expiration,
             required_fee,
             price_data: hint.price_data,
+            min_other_asset_amount_minus_one: hint.min_other_asset_amount_minus_one,
         })
     }
 }

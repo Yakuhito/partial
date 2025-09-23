@@ -40,6 +40,10 @@ enum Commands {
         #[arg(long, default_value = "0.00042")]
         minimum_asserted_fee: Option<String>,
 
+        /// Minimum other asset amount required to accept the partial offer
+        #[arg(long, default_value = "0.001")]
+        min_other_asset_amount: String,
+
         /// Fee to include in partial offer
         #[arg(long, default_value = "0.00042")]
         fee: String,
@@ -105,6 +109,7 @@ pub async fn run_cli() {
             minimum_asserted_fee,
             fee,
             testnet11,
+            min_other_asset_amount,
         } => {
             cli_create(
                 offered_asset_id,
@@ -115,6 +120,7 @@ pub async fn run_cli() {
                 minimum_asserted_fee,
                 fee,
                 testnet11,
+                min_other_asset_amount,
             )
             .await
         }
