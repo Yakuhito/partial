@@ -48,7 +48,7 @@
                     my_inner_puzzle_hash
                     (- my_amount (/ (* other_asset_amount PRICE_PRECISION) PRECISION)) ; new amount
                 )
-                (i (if create_coin_rest (> create_coin_amount -1) ())
+                (if (if create_coin_rest (> create_coin_amount -1) ())
                     (c
                         (c CREATE_COIN create_coin_rest)
                         (a INNER_PUZZLE inner_puzzle_solution)
