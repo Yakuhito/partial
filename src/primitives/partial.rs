@@ -755,7 +755,7 @@ mod tests {
                         } else {
                             "full_fill"
                         },
-                        &[taker_bls.sk.clone()],
+                        std::slice::from_ref(&taker_bls.sk),
                     )?;
 
                     if partial_fill_only {

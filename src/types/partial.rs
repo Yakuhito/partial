@@ -6,28 +6,28 @@ use chia_wallet_sdk::types::Mod;
 use clvm_traits::{FromClvm, ToClvm};
 use hex_literal::hex;
 
-pub const PARTIAL_PUZZLE: [u8; 446] = hex!(
+pub const PARTIAL_PUZZLE: [u8; 429] = hex!(
     "
-    ff02ffff01ff04ffff04ffff013fffff04ffff0bff0bffff02ff06ffff04ff02
-    ffff04ffff04ff82027fffff04ffff04ff17ffff04ffff02ffff03ffff15ff82
-    02ffff5f80ffff018202ffffff01ff088080ff0180ffff04ffff04ff17ff8080
-    ff80808080ff808080ff8080808080ff808080ffff04ffff04ffff0146ffff04
-    ffff30ff82027fffff02ff05ffff04ff82057fff820bff8080ff820b7f80ff80
-    8080ffff04ffff02ff04ffff04ff02ffff04ff82057fffff04ffff11ff820b7f
-    ffff05ffff14ffff12ff8202ffff82013f80ff8201bf808080ff8080808080ff
-    ff02ffff03ffff02ffff03ff8205ffffff01ff15ff8215ffffff0181ff80ff80
-    80ff0180ffff01ff04ffff04ffff0133ff8205ff80ffff02ff2fff820fff8080
-    ffff01ff02ff2fff820fff8080ff0180808080ffff04ffff01ffff03ffff15ff
-    0bff8080ffff04ffff0133ffff04ff05ffff04ff0bffff04ffff04ff05ff8080
-    ff8080808080ffff01ff018080ff02ffff03ffff07ff0580ffff01ff0bffff01
-    02ffff02ff06ffff04ff02ffff04ff09ff80808080ffff02ff06ffff04ff02ff
-    ff04ff0dff8080808080ffff01ff0bffff0101ff058080ff0180ff018080
+    ff02ffff01ff02ffff01ff04ffff04ffff013fffff04ffff0bff17ffff02ff05
+    ffff04ff05ffff04ff8204ffffff04ffff04ff2fffff04ffff02ffff03ffff15
+    ff8205ffff81bf80ffff018205ffffff01ff088080ff0180ffff04ffff04ff2f
+    ff8080ff80808080ff808080808080ff808080ffff04ffff04ffff0146ffff04
+    ffff30ff8204ffffff02ff0bffff04ff820affff8217ff8080ff8216ff80ff80
+    8080ffff04ffff03ffff15ff04ff8080ffff04ffff0133ffff04ff820affffff
+    04ff04ffff04ffff04ff820affff8080ff8080808080ffff04ffff0101ff8080
+    80ffff03ffff02ffff03ff820bffffff01ff02ffff03ffff15ff822bffffff01
+    81ff80ffff01ff0101ffff018080ff0180ffff018080ff0180ffff04ffff04ff
+    ff0133ff820bff80ff0680ff0680808080ffff04ffff04ffff11ff820b7fffff
+    13ffff12ff8202ffff82013f80ff8201bf8080ffff02ff2fff820fff8080ff01
+    8080ffff04ffff01ff02ffff03ffff07ff0380ffff01ff0bffff0102ffff02ff
+    02ffff04ff02ff058080ffff02ff02ffff04ff02ff07808080ffff01ff0bffff
+    0101ff038080ff0180ff018080
     "
 );
 
 pub const PARTIAL_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    91fe76d50effb3b2e7079770f3c309d7c0aa8022b5034457121f61ba38df4b12
+    e8b38a9da89c523f3a1e4b2679d893e1f565d800ecd4e37b25ef644ae84fe868
     "
 ));
 
