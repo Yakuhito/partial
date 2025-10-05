@@ -1,3 +1,8 @@
+// partial.rue
+// Used to enable partial offers
+
+// Note that a coin may wrap this in layers such as 1-of-n to enable cancellation
+
 struct Precisions {
     price_precision: Int,
     ...precision: Int,
@@ -18,18 +23,21 @@ struct CreateCoinRest {
 type CatMaker = fn(inner_puzzle_hash: Bytes32, ...inner_solution: Any) -> Bytes32;
 
 fn main(
+    // Curried arguments
     cat_maker: CatMaker,
     other_asset_offer_mod: Bytes32,
     receiver_puzzle_hash: Bytes32,
     inner_puzzle: fn(...inner_solution: Any) -> List<Condition>,
     min_other_asset_amount_minus_one: Int,
     precisions: Precisions,
+    // Solution
     proof: CoinProof,
     other_asset_amount: Int,
     create_coin_rest: CreateCoinRest | nil,
     cat_maker_solution: Any,
     ...inner_puzzle_solution: Any,
 ) -> List<Condition> {
+    // assert the other asset was paid
     let assert_puzzle_announcement = AssertPuzzleAnnouncement {
         id: sha256(other_asset_offer_mod + tree_hash([
             proof.parent_coin_id, // offer nonce
@@ -72,6 +80,7 @@ fn main(
     let inner_conditions = inner_puzzle(...inner_puzzle_solution);
 
     let rest = inline if !(create_coin_rest is nil) && create_coin_rest.amount > -1 {
+        // unchecked_cast allows bytecode optimization
         [unchecked_cast::<CreateCoin>((CREATE_COIN, create_coin_rest)), ...inner_conditions]
     } else {
         inner_conditions
