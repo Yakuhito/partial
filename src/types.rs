@@ -7,7 +7,7 @@ pub use partial_hint::*;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chia::clvm_utils::tree_hash;
+    use clvm_utils::tree_hash;
 
     // we really have to expose this in chia-sdk-test
     macro_rules! assert_puzzle_hash {

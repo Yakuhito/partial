@@ -4,19 +4,20 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-clvmr = "0.14.0"
-chia = "0.26.0"
-clvm-traits = "0.26.0"
-chia-puzzle-types = "0.26.0"
+clvmr = "0.16.2"
+chia-protocol = "0.36.1"
+chia-bls = "0.36.1"
+clvm-utils = "0.36.1"
+clvm-traits = "0.36.1"
+chia-puzzle-types = "0.36.1"
 hex-literal = "0.4.1"
 hex = "0.4.3"
 clap = { version = "4", features = ["derive"] }
-sage-api = { version = "0.10.3", git = "https://github.com/xch-dev/sage.git" }
-chia-puzzles = "0.20.1"
-bech32 = "0.9.1"
+sage-api = { version = "0.12.11", git = "https://github.com/xch-dev/sage.git" }
+chia-puzzles = "0.20.3"
 tokio = { version = "1.44.1", features = ["full"] }
-chia-wallet-sdk = { git = "https://github.com/xch-dev/chia-wallet-sdk.git", branch="the_merge", features=["offer-compression", "action-layer"] }
-slot-machine = { git = "https://github.com/Yakuhito/slot-machine", branch="the_merge"}
+chia-wallet-sdk = { git = "https://github.com/xch-dev/chia-wallet-sdk", rev = "05630657c6a811345263fbfeafe002f68cdcbee9", features = ["offer-compression", "action-layer"] }
+slot-machine = { git = "https://github.com/Yakuhito/slot-machine", rev = "6edc94856306d0f77e065c6c99aacf1055e51e2f" }
 
 [dev-dependencies]
 anyhow = "1.0.98"

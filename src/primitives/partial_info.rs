@@ -1,7 +1,4 @@
-use chia::{
-    clvm_utils::{ToTreeHash, TreeHash},
-    protocol::Bytes32,
-};
+use chia_protocol::Bytes32;
 use chia_puzzle_types::{LineageProof, cat::CatArgs};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_wallet_sdk::{
@@ -12,6 +9,7 @@ use chia_wallet_sdk::{
     },
 };
 use clvm_traits::{clvm_list, clvm_quote};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{PartialOfferAssetInfo, PartialOfferHint, PartialPriceData, PartialPuzzleArgs};

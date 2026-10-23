@@ -53,7 +53,7 @@ pub async fn cli_view(offer: String, testnet11: bool) -> Result<(), CliError> {
     coin_ids.push(offer.coin.coin_id());
 
     let resp = client
-        .get_coin_records_by_names(coin_ids, None, None, Some(true))
+        .get_coin_records_by_names(coin_ids, None, None, Some(true), None)
         .await?;
 
     // Yes, this can be tricked - but works for 'normal' cancellations
