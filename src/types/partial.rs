@@ -1,9 +1,10 @@
 use std::borrow::Cow;
 
-use chia::{clvm_utils::TreeHash, protocol::Bytes32};
+use chia_protocol::Bytes32;
 use chia_puzzle_types::CoinProof;
 use chia_wallet_sdk::types::Mod;
 use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::TreeHash;
 use hex_literal::hex;
 
 pub const PARTIAL_PUZZLE: [u8; 429] = hex!(

@@ -1,7 +1,5 @@
-use chia::{
-    bls::Signature,
-    protocol::{Bytes32, CoinSpend, SpendBundle},
-};
+use chia_bls::Signature;
+use chia_protocol::{Bytes32, CoinSpend, SpendBundle};
 use chia_puzzle_types::{
     CoinProof, LineageProof, Memos,
     cat::CatSolution,
@@ -545,18 +543,19 @@ mod tests {
                     };
 
                     if asked_is_revocable {
-                        let (create_conds, cats) = Cat::issue_revocable_with_coin(
+                        let (create_conds, cats) = Cat::single_issuance(
                             ctx,
                             taker_bls.coin.coin_id(),
-                            Bytes32::default(), // hidden puzzle hash
+                            Some(Bytes32::default()), // hidden puzzle hash
                             asked_amount,
                             inner_conds,
                         )?;
                         (create_conds, Some(cats), taker_fee_coins, None)
                     } else {
-                        let (create_conds, cats) = Cat::issue_with_coin(
+                        let (create_conds, cats) = Cat::single_issuance(
                             ctx,
                             taker_bls.coin.coin_id(),
+                            None,
                             asked_amount,
                             inner_conds,
                         )?;
@@ -591,17 +590,18 @@ mod tests {
                     );
 
                     let (create_conds, cats) = if offered_is_revocable {
-                        Cat::issue_revocable_with_coin(
+                        Cat::single_issuance(
                             ctx,
                             maker_bls.coin.coin_id(),
-                            Bytes32::default(), // hidden puzzle hash
+                            Some(Bytes32::default()), // hidden puzzle hash
                             maker_bls.coin.amount,
                             inner_conds,
                         )?
                     } else {
-                        Cat::issue_with_coin(
+                        Cat::single_issuance(
                             ctx,
                             maker_bls.coin.coin_id(),
+                            None,
                             maker_bls.coin.amount,
                             inner_conds,
                         )?

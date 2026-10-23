@@ -1,4 +1,4 @@
-use chia::protocol::{Bytes32, SpendBundle};
+use chia_protocol::{Bytes32, SpendBundle};
 use chia_puzzle_types::{
     Memos,
     offer::{NotarizedPayment, Payment, SettlementPaymentsSolution},

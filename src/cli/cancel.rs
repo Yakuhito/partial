@@ -1,4 +1,4 @@
-use chia::protocol::SpendBundle;
+use chia_protocol::SpendBundle;
 use chia_wallet_sdk::{
     coinset::ChiaRpcClient,
     driver::{
@@ -76,7 +76,16 @@ pub async fn cli_cancel(offer: String, fee_str: String, testnet11: bool) -> Resu
     let client = get_coinset_client(testnet11);
     let resp = client.push_tx(sb).await?;
 
-    println!("Transaction submitted; status='{}'", resp.status);
+    if !resp.success {
+        return Err(CliError::Custom(format!(
+            "Transaction rejected: {}",
+            resp.error.unwrap_or_default()
+        )));
+    }
+    println!(
+        "Transaction submitted; status='{}'",
+        resp.status.unwrap_or_default()
+    );
     wait_for_coin(&client, partial_offer_coin_id, true).await?;
     println!("Confirmed!");
 
